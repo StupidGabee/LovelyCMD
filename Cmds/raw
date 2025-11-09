@@ -1,0 +1,175 @@
+return {
+    {
+        name = "tp",
+        description = "Teleport to a player",
+        usage = "/tp [player]",
+        func = function(args)
+            local Players = game:GetService("Players")
+            local player = Players.LocalPlayer
+            
+            if not args[1] then
+                warn("Usage: /tp [player]")
+                return
+            end
+            
+            local targetPlayer = nil
+            local searchName = args[1]:lower()
+            
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr.Name:lower():find(searchName, 1, true) then
+                    targetPlayer = plr
+                    break
+                end
+            end
+            
+            if not targetPlayer then
+                warn("Player not found: " .. args[1])
+                return
+            end
+            
+            if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    player.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+                end
+            end
+        end
+    },
+    
+    {
+        name = "respawn",
+        description = "Respawn your character",
+        usage = "/respawn",
+        func = function(args)
+            local player = game:GetService("Players").LocalPlayer
+            
+            if player.Character then
+                player.Character:BreakJoints()
+            end
+        end
+    },
+    
+    {
+        name = "speed",
+        description = "Set your walk speed",
+        usage = "/speed [number]",
+        func = function(args)
+            local player = game:GetService("Players").LocalPlayer
+            
+            if not args[1] then
+                warn("Usage: /speed [number]")
+                return
+            end
+            
+            local speed = tonumber(args[1])
+            if not speed then
+                warn("Invalid speed value")
+                return
+            end
+            
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                player.Character.Humanoid.WalkSpeed = speed
+            end
+        end
+    },
+    
+    {
+        name = "jump",
+        description = "Set your jump power",
+        usage = "/jump [number]",
+        func = function(args)
+            local player = game:GetService("Players").LocalPlayer
+            
+            if not args[1] then
+                warn("Usage: /jump [number]")
+                return
+            end
+            
+            local power = tonumber(args[1])
+            if not power then
+                warn("Invalid jump value")
+                return
+            end
+            
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                player.Character.Humanoid.JumpPower = power
+            end
+        end
+    },
+    
+    {
+        name = "god",
+        description = "Toggle god mode",
+        usage = "/god",
+        func = function(args)
+            local player = game:GetService("Players").LocalPlayer
+            
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                local humanoid = player.Character.Humanoid
+                humanoid.MaxHealth = math.huge
+                humanoid.Health = math.huge
+            end
+        end
+    },
+    
+    {
+        name = "sit",
+        description = "Make your character sit",
+        usage = "/sit",
+        func = function(args)
+            local player = game:GetService("Players").LocalPlayer
+            
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                player.Character.Humanoid.Sit = true
+            end
+        end
+    },
+    
+    {
+        name = "unsit",
+        description = "Make your character stand up",
+        usage = "/unsit",
+        func = function(args)
+            local player = game:GetService("Players").LocalPlayer
+            
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                player.Character.Humanoid.Sit = false
+            end
+        end
+    },
+    
+    {
+        name = "goto",
+        description = "Teleport to a player (alias for tp)",
+        usage = "/goto [player]",
+        func = function(args)
+            local Players = game:GetService("Players")
+            local player = Players.LocalPlayer
+            
+            if not args[1] then
+                warn("Usage: /goto [player]")
+                return
+            end
+            
+            local targetPlayer = nil
+            local searchName = args[1]:lower()
+            
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr.Name:lower():find(searchName, 1, true) then
+                    targetPlayer = plr
+                    break
+                end
+            end
+            
+            if not targetPlayer then
+                warn("Player not found: " .. args[1])
+                return
+            end
+            
+            if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    player.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+                end
+            end
+        end
+    }
+}
