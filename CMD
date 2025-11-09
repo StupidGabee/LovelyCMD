@@ -1,0 +1,527 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+local commands = {}
+local commandHistory = {}
+local historyIndex = 0
+local currentSuggestions = {}
+
+local function loadCommands()
+    local success, result = pcall(function()
+        return game:HttpGet("https://raw.githubusercontent.com/...")
+    end)
+    
+    if success then
+        local cmdSuccess, cmdResult = pcall(function()
+            return loadstring(result)()
+        end)
+        
+        if cmdSuccess and type(cmdResult) == "table" then
+            commands = cmdResult
+            return true
+        end
+    end
+    
+    commands = {}
+    return false
+end
+
+local function getOnlinePlayers()
+    local playerList = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        table.insert(playerList, plr.Name)
+    end
+    return playerList
+end
+
+local function findPlayer(input)
+    if not input or input == "" then return nil end
+    
+    local lowerInput = input:lower()
+    local players = Players:GetPlayers()
+    
+    for _, plr in ipairs(players) do
+        if plr.Name:lower() == lowerInput then
+            return plr
+        end
+    end
+    
+    for _, plr in ipairs(players) do
+        if plr.Name:lower():sub(1, #lowerInput) == lowerInput then
+            return plr
+        end
+    end
+    
+    for _, plr in ipairs(players) do
+        if plr.Name:lower():find(lowerInput, 1, true) then
+            return plr
+        end
+    end
+    
+    return nil
+end
+
+local function isValidPath(text)
+    if not text or text == "" then return false end
+    
+    local success, result = pcall(function()
+        return loadstring("return " .. text)()
+    end)
+    
+    return success and result ~= nil
+end
+
+local function matchesPlayer(text)
+    local lowerText = text:lower()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name:lower():find(lowerText, 1, true) then
+            return true, plr.Name
+        end
+    end
+    return false, nil
+end
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CommandBarGui"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = playerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 500, 0, 40)
+mainFrame.Position = UDim2.new(0.5, -250, 1, -60)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = false
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 6)
+mainCorner.Parent = mainFrame
+
+local commandInput = Instance.new("TextBox")
+commandInput.Size = UDim2.new(1, -16, 1, -8)
+commandInput.Position = UDim2.new(0, 8, 0, 4)
+commandInput.BackgroundTransparency = 1
+commandInput.Text = ""
+commandInput.PlaceholderText = "Enter command... (/ for commands)"
+commandInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+commandInput.PlaceholderColor3 = Color3.fromRGB(100, 100, 100)
+commandInput.TextSize = 14
+commandInput.Font = Enum.Font.GothamMedium
+commandInput.TextXAlignment = Enum.TextXAlignment.Left
+commandInput.ClearTextOnFocus = false
+commandInput.Parent = mainFrame
+
+local suggestionFrame = Instance.new("Frame")
+suggestionFrame.Size = UDim2.new(1, 0, 0, 0)
+suggestionFrame.Position = UDim2.new(0, 0, 0, 45)
+suggestionFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+suggestionFrame.BorderSizePixel = 0
+suggestionFrame.Visible = false
+suggestionFrame.ClipsDescendants = true
+suggestionFrame.Parent = screenGui
+
+local suggestionCorner = Instance.new("UICorner")
+suggestionCorner.CornerRadius = UDim.new(0, 6)
+suggestionCorner.Parent = suggestionFrame
+
+local suggestionList = Instance.new("ScrollingFrame")
+suggestionList.Size = UDim2.new(1, -8, 1, -8)
+suggestionList.Position = UDim2.new(0, 4, 0, 4)
+suggestionList.BackgroundTransparency = 1
+suggestionList.BorderSizePixel = 0
+suggestionList.ScrollBarThickness = 4
+suggestionList.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 60)
+suggestionList.Parent = suggestionFrame
+
+local suggestionLayout = Instance.new("UIListLayout")
+suggestionLayout.SortOrder = Enum.SortOrder.LayoutOrder
+suggestionLayout.Padding = UDim.new(0, 2)
+suggestionLayout.Parent = suggestionList
+
+local cmdsGui = Instance.new("Frame")
+cmdsGui.Size = UDim2.new(0, 600, 0, 400)
+cmdsGui.Position = UDim2.new(0.5, -300, 0.5, -200)
+cmdsGui.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+cmdsGui.BorderSizePixel = 0
+cmdsGui.Visible = false
+cmdsGui.Active = true
+cmdsGui.Parent = screenGui
+
+local cmdsCorner = Instance.new("UICorner")
+cmdsCorner.CornerRadius = UDim.new(0, 8)
+cmdsCorner.Parent = cmdsGui
+
+local cmdsHeader = Instance.new("Frame")
+cmdsHeader.Size = UDim2.new(1, 0, 0, 40)
+cmdsHeader.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+cmdsHeader.BorderSizePixel = 0
+cmdsHeader.Parent = cmdsGui
+
+local cmdsHeaderCorner = Instance.new("UICorner")
+cmdsHeaderCorner.CornerRadius = UDim.new(0, 8)
+cmdsHeaderCorner.Parent = cmdsHeader
+
+local cmdsHeaderCover = Instance.new("Frame")
+cmdsHeaderCover.Size = UDim2.new(1, 0, 0, 8)
+cmdsHeaderCover.Position = UDim2.new(0, 0, 1, -8)
+cmdsHeaderCover.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+cmdsHeaderCover.BorderSizePixel = 0
+cmdsHeaderCover.Parent = cmdsHeader
+
+local cmdsTitle = Instance.new("TextLabel")
+cmdsTitle.Size = UDim2.new(1, -100, 1, 0)
+cmdsTitle.Position = UDim2.new(0, 16, 0, 0)
+cmdsTitle.BackgroundTransparency = 1
+cmdsTitle.Text = "Commands"
+cmdsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+cmdsTitle.TextSize = 16
+cmdsTitle.Font = Enum.Font.GothamBold
+cmdsTitle.TextXAlignment = Enum.TextXAlignment.Left
+cmdsTitle.Parent = cmdsHeader
+
+local cmdsClose = Instance.new("TextButton")
+cmdsClose.Size = UDim2.new(0, 30, 0, 30)
+cmdsClose.Position = UDim2.new(1, -35, 0, 5)
+cmdsClose.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+cmdsClose.Text = "×"
+cmdsClose.TextColor3 = Color3.fromRGB(200, 200, 200)
+cmdsClose.TextSize = 18
+cmdsClose.Font = Enum.Font.GothamBold
+cmdsClose.BorderSizePixel = 0
+cmdsClose.Parent = cmdsHeader
+
+local cmdsCloseCorner = Instance.new("UICorner")
+cmdsCloseCorner.CornerRadius = UDim.new(0, 6)
+cmdsCloseCorner.Parent = cmdsClose
+
+local cmdsScroll = Instance.new("ScrollingFrame")
+cmdsScroll.Size = UDim2.new(1, -16, 1, -56)
+cmdsScroll.Position = UDim2.new(0, 8, 0, 48)
+cmdsScroll.BackgroundTransparency = 1
+cmdsScroll.BorderSizePixel = 0
+cmdsScroll.ScrollBarThickness = 6
+cmdsScroll.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 60)
+cmdsScroll.Parent = cmdsGui
+
+local cmdsGrid = Instance.new("UIGridLayout")
+cmdsGrid.CellSize = UDim2.new(0, 280, 0, 80)
+cmdsGrid.CellPadding = UDim2.new(0, 8, 0, 8)
+cmdsGrid.SortOrder = Enum.SortOrder.LayoutOrder
+cmdsGrid.Parent = cmdsScroll
+
+local function createSuggestion(text, subtext, type)
+    local suggestion = Instance.new("TextButton")
+    suggestion.Size = UDim2.new(1, 0, 0, 32)
+    suggestion.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    suggestion.BorderSizePixel = 0
+    suggestion.AutoButtonColor = false
+    suggestion.Text = ""
+    suggestion.Parent = suggestionList
+    
+    local suggCorner = Instance.new("UICorner")
+    suggCorner.CornerRadius = UDim.new(0, 4)
+    suggCorner.Parent = suggestion
+    
+    local mainText = Instance.new("TextLabel")
+    mainText.Size = UDim2.new(1, -16, 0, 16)
+    mainText.Position = UDim2.new(0, 8, 0, 4)
+    mainText.BackgroundTransparency = 1
+    mainText.Text = text
+    mainText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    mainText.TextSize = 13
+    mainText.Font = Enum.Font.GothamMedium
+    mainText.TextXAlignment = Enum.TextXAlignment.Left
+    mainText.Parent = suggestion
+    
+    local sub = Instance.new("TextLabel")
+    sub.Size = UDim2.new(1, -16, 0, 12)
+    sub.Position = UDim2.new(0, 8, 0, 18)
+    sub.BackgroundTransparency = 1
+    sub.Text = subtext
+    sub.TextColor3 = Color3.fromRGB(120, 120, 120)
+    sub.TextSize = 10
+    sub.Font = Enum.Font.Gotham
+    sub.TextXAlignment = Enum.TextXAlignment.Left
+    sub.Parent = suggestion
+    
+    suggestion.MouseEnter:Connect(function()
+        suggestion.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    end)
+    
+    suggestion.MouseLeave:Connect(function()
+        suggestion.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    end)
+    
+    return suggestion
+end
+
+local function clearSuggestions()
+    for _, child in ipairs(suggestionList:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    currentSuggestions = {}
+end
+
+local function showSuggestions(suggestions)
+    clearSuggestions()
+    
+    if #suggestions == 0 then
+        suggestionFrame.Visible = false
+        return
+    end
+    
+    local height = math.min(#suggestions * 34, 200)
+    suggestionFrame.Size = UDim2.new(0, 500, 0, height + 8)
+    suggestionFrame.Position = UDim2.new(0.5, -250, 1, -height - 108)
+    suggestionList.CanvasSize = UDim2.new(0, 0, 0, #suggestions * 34)
+    
+    for i, sugg in ipairs(suggestions) do
+        local btn = createSuggestion(sugg.text, sugg.subtext, sugg.type)
+        btn.LayoutOrder = i
+        currentSuggestions[i] = sugg
+        
+        btn.MouseButton1Click:Connect(function()
+            if sugg.type == "command" then
+                commandInput.Text = "/" .. sugg.text .. " "
+            elseif sugg.type == "player" then
+                local currentText = commandInput.Text
+                local lastSpace = currentText:reverse():find(" ")
+                if lastSpace then
+                    commandInput.Text = currentText:sub(1, #currentText - lastSpace + 1) .. sugg.text
+                else
+                    commandInput.Text = sugg.text
+                end
+            elseif sugg.type == "path" then
+                commandInput.Text = sugg.text
+            end
+            commandInput:CaptureFocus()
+        end)
+    end
+    
+    suggestionFrame.Visible = true
+end
+
+local function updateSuggestions()
+    local text = commandInput.Text
+    local suggestions = {}
+    
+    if text:sub(1, 1) == "/" then
+        local cmdText = text:sub(2):lower()
+        
+        for _, cmd in ipairs(commands) do
+            if cmd.name:lower():find(cmdText, 1, true) then
+                table.insert(suggestions, {
+                    text = cmd.name,
+                    subtext = cmd.description or cmd.usage or "No description",
+                    type = "command"
+                })
+            end
+        end
+    else
+        local words = {}
+        for word in text:gmatch("%S+") do
+            table.insert(words, word)
+        end
+        
+        if #words > 0 then
+            local lastWord = words[#words]:lower()
+            
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr.Name:lower():find(lastWord, 1, true) then
+                    table.insert(suggestions, {
+                        text = plr.Name,
+                        subtext = "Player",
+                        type = "player"
+                    })
+                end
+            end
+            
+            if lastWord:find("game", 1, true) or lastWord:find("workspace", 1, true) then
+                local paths = {
+                    "game.Workspace",
+                    "game.Players",
+                    "game.ReplicatedStorage",
+                    "game.Lighting"
+                }
+                
+                for _, path in ipairs(paths) do
+                    if path:lower():find(lastWord, 1, true) then
+                        table.insert(suggestions, {
+                            text = path,
+                            subtext = "Path",
+                            type = "path"
+                        })
+                    end
+                end
+            end
+        end
+    end
+    
+    showSuggestions(suggestions)
+end
+
+local function executeCommand(text)
+    if text:sub(1, 1) == "/" then
+        local parts = {}
+        for part in text:gmatch("%S+") do
+            table.insert(parts, part)
+        end
+        
+        local cmdName = parts[1]:sub(2):lower()
+        
+        if cmdName == "cmds" then
+            cmdsGui.Visible = true
+            mainFrame.Visible = false
+            return
+        end
+        
+        for _, cmd in ipairs(commands) do
+            if cmd.name:lower() == cmdName then
+                local args = {}
+                for i = 2, #parts do
+                    table.insert(args, parts[i])
+                end
+                
+                if cmd.func then
+                    local success, err = pcall(function()
+                        cmd.func(args)
+                    end)
+                    
+                    if not success then
+                        warn("Command error:", err)
+                    end
+                end
+                
+                table.insert(commandHistory, text)
+                historyIndex = #commandHistory + 1
+                return
+            end
+        end
+    end
+    
+    table.insert(commandHistory, text)
+    historyIndex = #commandHistory + 1
+end
+
+local function populateCmdsGui()
+    for _, child in ipairs(cmdsScroll:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    
+    for i, cmd in ipairs(commands) do
+        local cmdFrame = Instance.new("Frame")
+        cmdFrame.Size = UDim2.new(0, 280, 0, 80)
+        cmdFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+        cmdFrame.BorderSizePixel = 0
+        cmdFrame.Parent = cmdsScroll
+        
+        local cmdCorner = Instance.new("UICorner")
+        cmdCorner.CornerRadius = UDim.new(0, 6)
+        cmdCorner.Parent = cmdFrame
+        
+        local cmdName = Instance.new("TextLabel")
+        cmdName.Size = UDim2.new(1, -16, 0, 20)
+        cmdName.Position = UDim2.new(0, 8, 0, 8)
+        cmdName.BackgroundTransparency = 1
+        cmdName.Text = "/" .. cmd.name
+        cmdName.TextColor3 = Color3.fromRGB(255, 255, 255)
+        cmdName.TextSize = 14
+        cmdName.Font = Enum.Font.GothamBold
+        cmdName.TextXAlignment = Enum.TextXAlignment.Left
+        cmdName.Parent = cmdFrame
+        
+        local cmdDesc = Instance.new("TextLabel")
+        cmdDesc.Size = UDim2.new(1, -16, 0, 28)
+        cmdDesc.Position = UDim2.new(0, 8, 0, 28)
+        cmdDesc.BackgroundTransparency = 1
+        cmdDesc.Text = cmd.description or ""
+        cmdDesc.TextColor3 = Color3.fromRGB(180, 180, 180)
+        cmdDesc.TextSize = 11
+        cmdDesc.Font = Enum.Font.Gotham
+        cmdDesc.TextXAlignment = Enum.TextXAlignment.Left
+        cmdDesc.TextYAlignment = Enum.TextYAlignment.Top
+        cmdDesc.TextWrapped = true
+        cmdDesc.Parent = cmdFrame
+        
+        local cmdUsage = Instance.new("TextLabel")
+        cmdUsage.Size = UDim2.new(1, -16, 0, 16)
+        cmdUsage.Position = UDim2.new(0, 8, 1, -20)
+        cmdUsage.BackgroundTransparency = 1
+        cmdUsage.Text = cmd.usage or ""
+        cmdUsage.TextColor3 = Color3.fromRGB(120, 120, 120)
+        cmdUsage.TextSize = 10
+        cmdUsage.Font = Enum.Font.RobotoMono
+        cmdUsage.TextXAlignment = Enum.TextXAlignment.Left
+        cmdUsage.Parent = cmdFrame
+    end
+    
+    cmdsScroll.CanvasSize = UDim2.new(0, 0, 0, cmdsGrid.AbsoluteContentSize.Y)
+end
+
+commandInput:GetPropertyChangedSignal("Text"):Connect(updateSuggestions)
+
+commandInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local text = commandInput.Text
+        if text ~= "" then
+            executeCommand(text)
+            commandInput.Text = ""
+        end
+        mainFrame.Visible = false
+    end
+    
+    task.wait(0.1)
+    suggestionFrame.Visible = false
+end)
+
+commandInput.Focused:Connect(function()
+    updateSuggestions()
+end)
+
+cmdsClose.MouseButton1Click:Connect(function()
+    cmdsGui.Visible = false
+end)
+
+if not isMobile then
+    UserInputService.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        
+        if input.KeyCode == Enum.KeyCode.Semicolon then
+            mainFrame.Visible = not mainFrame.Visible
+            if mainFrame.Visible then
+                commandInput:CaptureFocus()
+            end
+        elseif input.KeyCode == Enum.KeyCode.Up and commandInput:IsFocused() then
+            if historyIndex > 1 then
+                historyIndex = historyIndex - 1
+                commandInput.Text = commandHistory[historyIndex]
+            end
+        elseif input.KeyCode == Enum.KeyCode.Down and commandInput:IsFocused() then
+            if historyIndex < #commandHistory then
+                historyIndex = historyIndex + 1
+                commandInput.Text = commandHistory[historyIndex]
+            elseif historyIndex == #commandHistory then
+                historyIndex = #commandHistory + 1
+                commandInput.Text = ""
+            end
+        end
+    end)
+end
+
+loadCommands()
+populateCmdsGui()
+
+cmdsGrid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    cmdsScroll.CanvasSize = UDim2.new(0, 0, 0, cmdsGrid.AbsoluteContentSize.Y)
+end)
