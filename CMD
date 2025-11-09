@@ -13,7 +13,7 @@ local currentSuggestions = {}
 
 local function loadCommands()
     local success, result = pcall(function()
-        return game:HttpGet("https://raw.githubusercontent.com/...")
+        return game:HttpGet("https://raw.githubusercontent.com/StupidGabee/LovelyCMD/refs/heads/main/Cmds/raw")
     end)
     
     if success then
